@@ -1,26 +1,137 @@
+// frontend/src/routes/AppRoutes.jsx
+import React, { Suspense, lazy } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 import ProtectedRoute from './ProtectedRoute';
+import RoleRoute from './RoleRoute';
+import LoadingSpinner from '../components/common/LoadingSpinner';
+import Layout from '../components/common/Layout';
 
+// Eager
 import Login from '../pages/Login';
 import Dashboard from '../pages/Dashboard';
 import NotFound from '../pages/NotFound';
 
+// 🆕 Public form
+import EnquiryForm from '../pages/public/EnquiryForm';
+
+// Lazy pages
+const QualificationList = lazy(() => import('../pages/qualification/QualificationList'));
+const SiteVisitScheduling = lazy(() => import('../pages/siteVisit/SiteVisitScheduling'));
+const SiteVisitExecution = lazy(() => import('../pages/siteVisit/SiteVisitExecution'));
+const PostVisitFollowup = lazy(() => import('../pages/postVisit/PostVisitFollowup'));
+const DealList = lazy(() => import('../pages/deal/DealList'));
+
+const UserManagement = lazy(() => import('../pages/admin/UserManagement'));
+const ProjectManagement = lazy(() => import('../pages/admin/ProjectManagement'));
+const HolidayManagement = lazy(() => import('../pages/admin/HolidayManagement'));
+const Reports = lazy(() => import('../pages/admin/Reports'));
+
+const SuspenseWrapper = ({ children }) => (
+  <Suspense fallback={
+    <div className="flex items-center justify-center h-full py-20">
+      <LoadingSpinner size="lg" text="Loading page..." />
+    </div>
+  }>
+    {children}
+  </Suspense>
+);
+
+const PageWrapper = ({ children }) => (
+  <Layout>
+    <SuspenseWrapper>{children}</SuspenseWrapper>
+  </Layout>
+);
+
 const AppRoutes = () => {
+  const { isAuthenticated, isLoading } = useAuth();
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <LoadingSpinner size="xl" text="Loading VRN CRM..." />
+      </div>
+    );
+  }
+
   return (
     <Routes>
-      {/* Public routes */}
-      <Route path="/login" element={<Login />} />
-      
-      {/* Protected routes */}
+
+      {/* ═══════════════════════════════════════════ */}
+      {/* 🆕 PUBLIC ROUTES (NO AUTH REQUIRED) */}
+      {/* ═══════════════════════════════════════════ */}
+      <Route path="/enquiry" element={<EnquiryForm />} />
+
+      {/* Login */}
       <Route
-        path="/"
-        element={
-          <ProtectedRoute>
-            <Dashboard />
-          </ProtectedRoute>
-        }
+        path="/login"
+        element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <Login />}
       />
-      
+
+      {/* ═══════════════════════════════════════════ */}
+      {/* PROTECTED ROUTES */}
+      {/* ═══════════════════════════════════════════ */}
+      <Route element={<ProtectedRoute />}>
+
+        <Route path="/dashboard" element={<PageWrapper><Dashboard /></PageWrapper>} />
+
+        <Route path="/qualification" element={
+          <RoleRoute roles={['ADMIN', 'BDM']}>
+            <PageWrapper><QualificationList /></PageWrapper>
+          </RoleRoute>
+        } />
+
+        <Route path="/site-visit-scheduling" element={
+          <RoleRoute roles={['ADMIN', 'BDM']}>
+            <PageWrapper><SiteVisitScheduling /></PageWrapper>
+          </RoleRoute>
+        } />
+
+        <Route path="/site-visit-execution" element={
+          <RoleRoute roles={['ADMIN', 'BDM', 'ADVISOR']}>
+            <PageWrapper><SiteVisitExecution /></PageWrapper>
+          </RoleRoute>
+        } />
+
+        <Route path="/post-visit" element={
+          <RoleRoute roles={['ADMIN', 'ADVISOR']}>
+            <PageWrapper><PostVisitFollowup /></PageWrapper>
+          </RoleRoute>
+        } />
+
+        <Route path="/deal" element={
+          <RoleRoute roles={['ADMIN', 'ADVISOR']}>
+            <PageWrapper><DealList /></PageWrapper>
+          </RoleRoute>
+        } />
+
+        <Route path="/admin/users" element={
+          <RoleRoute roles={['ADMIN']}>
+            <PageWrapper><UserManagement /></PageWrapper>
+          </RoleRoute>
+        } />
+
+        <Route path="/admin/projects" element={
+          <RoleRoute roles={['ADMIN']}>
+            <PageWrapper><ProjectManagement /></PageWrapper>
+          </RoleRoute>
+        } />
+
+        <Route path="/admin/holidays" element={
+          <RoleRoute roles={['ADMIN']}>
+            <PageWrapper><HolidayManagement /></PageWrapper>
+          </RoleRoute>
+        } />
+
+        <Route path="/admin/reports" element={
+          <RoleRoute roles={['ADMIN']}>
+            <PageWrapper><Reports /></PageWrapper>
+          </RoleRoute>
+        } />
+
+        <Route path="/" element={<Navigate to="/dashboard" replace />} />
+      </Route>
+
       {/* 404 */}
       <Route path="*" element={<NotFound />} />
     </Routes>

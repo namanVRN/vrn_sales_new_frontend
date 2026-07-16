@@ -1,36 +1,35 @@
-// frontend/src/pages/deal/DealList.jsx
+// frontend/src/pages/siteVisit/SiteVisitScheduling.jsx
 import { useState, useEffect, useCallback } from 'react';
-import { useSearchParams } from 'react-router-dom';           // 🆕
+import { useSearchParams } from 'react-router-dom';          // 🆕 ADD THIS
 import {
-  Handshake, RefreshCw,
-  Trophy, XCircle, TrendingUp, Target
+  CalendarCheck, RefreshCw,
+  AlertTriangle, Snowflake, Clock, TrendingUp
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuth } from '../../context/AuthContext.jsx';
-import { getDealLeads, getDealStats } from '../../api/dealApi.js';
+import {
+  getSiteVisitSchedulingLeads,
+  getSiteVisitSchedulingStats
+} from '../../api/siteVisitApi.js';
 import LeadTable from '../../components/common/LeadTable.jsx';
 import SearchBar from '../../components/common/SearchBar.jsx';
-import AdvancedFilterPanel from '../../components/common/AdvancedFilterPanel.jsx'; // 🆕
-import UpdateDealModal from '../../components/modals/UpdateDealModal.jsx';
-import ReassignModal from '../../components/modals/ReassignModal.jsx';             // 🆕
+import AdvancedFilterPanel from '../../components/common/AdvancedFilterPanel.jsx';   // 🆕
+import UpdateSiteVisitSchedulingModal from '../../components/modals/UpdateSiteVisitSchedulingModal.jsx';
+import ReassignModal from '../../components/modals/ReassignModal.jsx';               // 🆕
 import { PageLoader } from '../../components/common/LoadingSpinner.jsx';
 
-// 🆕 Deal statuses
-const DEAL_STATUSES = [
-  { value: 'NEGOTIATION', label: '🤝 Negotiation' },
-  { value: 'MEETING_RESCHEDULE', label: '🔄 Meeting Reschedule' },
+// 🆕 Status options for this stage
+const SCHEDULING_STATUSES = [
+  { value: 'VISIT_SCHEDULED', label: '📅 Visit Scheduled' },
   { value: 'FOLLOWUP_REQUIRED', label: '📞 Followup Required' },
   { value: 'NO_RESPONSE', label: '📵 No Response' },
   { value: 'COLD', label: '🥶 Cold' },
-  { value: 'DEAL_WON', label: '🏆 Deal Won' },
-  { value: 'DEAL_LOST', label: '❌ Deal Lost' },
-  { value: 'NEGOTIATION_FAILED', label: '💔 Negotiation Failed' },
   { value: 'NOT_INTERESTED', label: '🚫 Not Interested' },
 ];
 
-const DealList = () => {
+const SiteVisitScheduling = () => {
   const { isAdmin } = useAuth();
-  const [searchParams] = useSearchParams();                   // 🆕
+  const [searchParams] = useSearchParams();                  // 🆕
 
   const [leads, setLeads] = useState([]);
   const [stats, setStats] = useState(null);
@@ -46,7 +45,7 @@ const DealList = () => {
   const [updateModal, setUpdateModal] = useState({ open: false, lead: null });
   const [reassignModal, setReassignModal] = useState({ open: false, lead: null }); // 🆕
 
-  // 🆕 Build params
+  // 🆕 Build params from URL + search
   const buildParams = useCallback(() => ({
     page,
     limit: 50,
@@ -57,14 +56,14 @@ const DealList = () => {
   const fetchLeads = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await getDealLeads(buildParams());          // 🆕 pass params
+      const res = await getSiteVisitSchedulingLeads(buildParams()); // 🆕 pass params
       const d = res?.data;
       const leadsData = d?.data?.leads || d?.data || d?.leads || [];
       setLeads(Array.isArray(leadsData) ? leadsData : []);
       setTotal(d?.data?.total || d?.total || 0);
       setTotalPages(d?.data?.totalPages || d?.totalPages || 1);
     } catch (err) {
-      toast.error('Failed to fetch deal leads');
+      toast.error('Failed to fetch leads');
       setLeads([]);
     } finally {
       setLoading(false);
@@ -77,7 +76,7 @@ const DealList = () => {
       const params = {};
       const ownerParam = searchParams.get('owner');
       if (ownerParam) params.owner = ownerParam;
-      const res = await getDealStats(params);
+      const res = await getSiteVisitSchedulingStats(params);
       setStats(res?.data?.data || res?.data);
     } catch (err) {
       console.error(err);
@@ -86,12 +85,14 @@ const DealList = () => {
     }
   }, [searchParams]);
 
+  // Re-fetch when URL params or search changes
   useEffect(() => {
     setPage(1);
     fetchLeads();
     fetchStats();
-  }, [searchParams, search]);                                 // 🆕
+  }, [searchParams, search]);                               // 🆕 searchParams dependency
 
+  // Debounce search
   useEffect(() => {
     const t = setTimeout(() => setSearch(searchInput), 400);
     return () => clearTimeout(t);
@@ -100,19 +101,14 @@ const DealList = () => {
   const handleUpdateSuccess = (updatedLead) => {
     setLeads(prev =>
       prev.map(l => l._id === updatedLead._id ? updatedLead : l)
-          .filter(l => l.current_stage === 'DEAL' && !l.is_closed)
+          .filter(l => l.current_stage === 'SITE_VISIT_SCHEDULING')
     );
     fetchStats();
   };
 
-  const handleReassignSuccess = (updatedLead) => {           // 🆕
+  const handleReassignSuccess = (updatedLead) => {   // 🆕
     setLeads(prev => prev.map(l => l._id === updatedLead._id ? updatedLead : l));
   };
-
-  // Win rate calculation
-  const winRate = stats?.won && stats?.total
-    ? Math.round((stats.won / stats.total) * 100)
-    : 0;
 
   return (
     <div className="flex flex-col h-full gap-4 p-4 md:p-6">
@@ -121,16 +117,16 @@ const DealList = () => {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-            <div className="bg-emerald-100 p-2 rounded-xl">
-              <Handshake size={22} className="text-emerald-600" />
+            <div className="bg-indigo-100 p-2 rounded-xl">
+              <CalendarCheck size={22} className="text-indigo-600" />
             </div>
-            Deal Pipeline
+            Visit Scheduling
           </h1>
-          <p className="text-gray-500 text-sm mt-1">Manage active deals and closures</p>
+          <p className="text-gray-500 text-sm mt-1">Schedule site visits for qualified leads</p>
         </div>
         <button
           onClick={() => { fetchLeads(); fetchStats(); }}
-          className="flex items-center gap-1.5 px-3 py-2 text-sm text-gray-600 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
+          className="flex items-center gap-1.5 px-3 py-2 text-sm text-gray-600 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
         >
           <RefreshCw size={15} />
           Refresh
@@ -140,30 +136,10 @@ const DealList = () => {
       {/* Stats Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {[
-          {
-            label: 'Active Deals',
-            value: stats?.active,
-            icon: Target,
-            bg: 'bg-emerald-50', text: 'text-emerald-600', iconBg: 'bg-emerald-100'
-          },
-          {
-            label: 'Deals Won',
-            value: stats?.won,
-            icon: Trophy,
-            bg: 'bg-yellow-50', text: 'text-yellow-600', iconBg: 'bg-yellow-100'
-          },
-          {
-            label: 'Deals Lost',
-            value: stats?.lost,
-            icon: XCircle,
-            bg: 'bg-red-50', text: 'text-red-600', iconBg: 'bg-red-100'
-          },
-          {
-            label: 'Win Rate',
-            value: `${winRate}%`,
-            icon: TrendingUp,
-            bg: 'bg-blue-50', text: 'text-blue-600', iconBg: 'bg-blue-100'
-          },
+          { label: 'Total', value: stats?.total, icon: TrendingUp, bg: 'bg-indigo-50', text: 'text-indigo-600', iconBg: 'bg-indigo-100' },
+          { label: "Today's", value: stats?.today, icon: Clock, bg: 'bg-blue-50', text: 'text-blue-600', iconBg: 'bg-blue-100' },
+          { label: 'Overdue', value: stats?.overdue, icon: AlertTriangle, bg: 'bg-red-50', text: 'text-red-600', iconBg: 'bg-red-100' },
+          { label: 'Cold', value: stats?.cold, icon: Snowflake, bg: 'bg-cyan-50', text: 'text-cyan-600', iconBg: 'bg-cyan-100' },
         ].map(({ label, value, icon: Icon, bg, text, iconBg }) => (
           <div key={label} className={`${bg} rounded-xl p-4 border border-white`}>
             <div className="flex items-center justify-between">
@@ -190,7 +166,7 @@ const DealList = () => {
 
       {/* 🆕 Advanced Filter Panel */}
       <AdvancedFilterPanel
-        stageStatuses={DEAL_STATUSES}
+        stageStatuses={SCHEDULING_STATUSES}
         showOwnerFilter={isAdmin}
         onFiltersChange={() => setPage(1)}
       />
@@ -200,19 +176,19 @@ const DealList = () => {
         <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
           <div className="flex items-center gap-2">
             <span className="text-sm font-semibold text-gray-700">Leads</span>
-            <span className="bg-emerald-100 text-emerald-700 text-xs font-semibold px-2 py-0.5 rounded-full">
+            <span className="bg-indigo-100 text-indigo-700 text-xs font-semibold px-2 py-0.5 rounded-full">
               {total}
             </span>
           </div>
           {totalPages > 1 && (
             <div className="flex items-center gap-2">
               <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
-                className="px-3 py-1 text-xs border rounded-lg disabled:opacity-40 hover:bg-gray-50">
+                className="px-3 py-1 text-xs border border-gray-200 rounded-lg disabled:opacity-40 hover:bg-gray-50">
                 Previous
               </button>
               <span className="text-xs text-gray-500">{page} / {totalPages}</span>
               <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages}
-                className="px-3 py-1 text-xs border rounded-lg disabled:opacity-40 hover:bg-gray-50">
+                className="px-3 py-1 text-xs border border-gray-200 rounded-lg disabled:opacity-40 hover:bg-gray-50">
                 Next
               </button>
             </div>
@@ -224,7 +200,7 @@ const DealList = () => {
         ) : (
           <LeadTable
             leads={leads}
-            stage="DEAL"
+            stage="SITE_VISIT_SCHEDULING"
             onUpdate={(lead) => setUpdateModal({ open: true, lead })}
             onReassign={isAdmin ? (lead) => setReassignModal({ open: true, lead }) : null} // 🆕
             showAssigned={isAdmin}
@@ -234,7 +210,7 @@ const DealList = () => {
 
       {/* Modals */}
       {updateModal.open && (
-        <UpdateDealModal
+        <UpdateSiteVisitSchedulingModal
           lead={updateModal.lead}
           isOpen={updateModal.open}
           onClose={() => setUpdateModal({ open: false, lead: null })}
@@ -255,4 +231,4 @@ const DealList = () => {
   );
 };
 
-export default DealList;
+export default SiteVisitScheduling;

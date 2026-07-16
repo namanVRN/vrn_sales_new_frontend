@@ -1,35 +1,31 @@
-// frontend/src/components/modals/UpdateQualificationModal.jsx
+// frontend/src/components/modals/UpdateSiteVisitSchedulingModal.jsx
 import React, { useState, useEffect } from 'react';
 import { 
-  X, UserCheck, PhoneCall, Snowflake, XCircle, 
-  ThumbsDown, Calendar, Clock, AlertCircle, ArrowRight,
-  ChevronDown, ChevronUp, User, Phone, Mail, Building2,
-  Star, MapPin, Info, MessageSquare, History, Briefcase,
-  FileText, Copy, Check
+  X, Calendar, PhoneCall, Snowflake, ThumbsDown, 
+  Clock, AlertCircle, ArrowRight, ChevronDown, ChevronUp, 
+  User, Phone, Mail, Building2, Star, MapPin, Info, 
+  MessageSquare, History, Briefcase, FileText, Copy, Check, MapPinned
 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { qualificationApi } from '../../api/qualificationApi';
-import { projectApi } from '../../api/projectApi';
+import { siteVisitSchedulingApi } from '../../api/siteVisitApi';
 import { leadApi } from '../../api/leadApi';
-import { QUALIFICATION_STATUSES, INTERESTED_IN, PURPOSE_OPTIONS } from '../../utils/constants';
+import { SITE_VISIT_SCHEDULING_STATUSES } from '../../utils/constants';
 import { getTodayString, formatDate, timeAgo } from '../../utils/dateHelpers';
 import StatusBadge from '../common/StatusBadge';
 
 const STATUS_ICONS = {
-  QUALIFIED: UserCheck,
+  VISIT_SCHEDULED: MapPinned,
   FOLLOWUP_REQUIRED: PhoneCall,
-  NO_CONNECTION: PhoneCall,
+  NO_RESPONSE: PhoneCall,
   COLD: Snowflake,
-  NOT_QUALIFIED: XCircle,
   NOT_INTERESTED: ThumbsDown,
 };
 
 const STATUS_COLORS = {
-  QUALIFIED: 'green',
+  VISIT_SCHEDULED: 'green',
   FOLLOWUP_REQUIRED: 'blue',
-  NO_CONNECTION: 'yellow',
+  NO_RESPONSE: 'yellow',
   COLD: 'cyan',
-  NOT_QUALIFIED: 'red',
   NOT_INTERESTED: 'red',
 };
 
@@ -85,21 +81,15 @@ const RemarkItem = ({ activity, isLast }) => {
           <StatusBadge status={activity.status_after} size="sm" />
         )}
         {isStageChange && (
-          <span className="text-orange-600 font-semibold text-xs">
-            ⬆️ Stage Changed
-          </span>
+          <span className="text-orange-600 font-semibold text-xs">⬆️ Stage Changed</span>
         )}
         {activity.action_type === 'CREATED' && (
-          <span className="text-green-600 font-semibold text-xs">
-            🆕 Lead Created
-          </span>
+          <span className="text-green-600 font-semibold text-xs">🆕 Lead Created</span>
         )}
       </div>
-
       <p className="text-sm text-gray-800 leading-relaxed pl-1">
         {activity.remark || '(No remark)'}
       </p>
-
       <div className="flex items-center gap-1.5 mt-2">
         <div className="w-5 h-5 rounded-full bg-purple-200 flex items-center justify-center">
           <span className="text-xs font-bold text-purple-700">
@@ -115,18 +105,13 @@ const RemarkItem = ({ activity, isLast }) => {
   );
 };
 
-const UpdateQualificationModal = ({ lead: initialLead, onClose, onSuccess }) => {
+const UpdateSiteVisitSchedulingModal = ({ lead: initialLead, onClose, onSuccess }) => {
   const [lead, setLead] = useState(initialLead);
   const [selectedStatus, setSelectedStatus] = useState('');
   const [remark, setRemark] = useState('');
   const [visitDate, setVisitDate] = useState('');
   const [followupDate, setFollowupDate] = useState('');
-  const [projectId, setProjectId] = useState(initialLead?.project?._id || initialLead?.project || '');
-  const [purpose, setPurpose] = useState(initialLead?.purpose || '');
-  const [interestedIn, setInterestedIn] = useState(initialLead?.interested_in || '');
   const [importantNote, setImportantNote] = useState(initialLead?.important_note || '');
-  const [notQualifiedReason, setNotQualifiedReason] = useState('');
-  const [projects, setProjects] = useState([]);
   const [activities, setActivities] = useState([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -141,9 +126,6 @@ const UpdateQualificationModal = ({ lead: initialLead, onClose, onSuccess }) => 
         const fullLead = res.data?.data || res.data;
         if (fullLead && fullLead._id) {
           setLead(fullLead);
-          setProjectId(fullLead.project?._id || fullLead.project || '');
-          setPurpose(fullLead.purpose || '');
-          setInterestedIn(fullLead.interested_in || '');
           setImportantNote(fullLead.important_note || '');
         }
       })
@@ -166,13 +148,6 @@ const UpdateQualificationModal = ({ lead: initialLead, onClose, onSuccess }) => 
       })
       .catch(err => console.error('❌ History error:', err.response?.data))
       .finally(() => setIsLoadingHistory(false));
-
-    projectApi.getActive()
-      .then(res => {
-        const projectsList = res.data?.data?.projects || res.data?.data || [];
-        setProjects(Array.isArray(projectsList) ? projectsList : []);
-      })
-      .catch(() => {});
   }, [initialLead._id]);
 
   useEffect(() => {
@@ -181,11 +156,10 @@ const UpdateQualificationModal = ({ lead: initialLead, onClose, onSuccess }) => 
     setErrors({});
   }, [selectedStatus]);
 
-  const isClosingStatus = ['NOT_QUALIFIED', 'NOT_INTERESTED'].includes(selectedStatus);
-  const isQualified = selectedStatus === 'QUALIFIED';
+  const isClosingStatus = selectedStatus === 'NOT_INTERESTED';
+  const isVisitScheduled = selectedStatus === 'VISIT_SCHEDULED';
   const isFollowupRequired = selectedStatus === 'FOLLOWUP_REQUIRED';
-  const isNotQualified = selectedStatus === 'NOT_QUALIFIED';
-  const isAutoDate = ['NO_CONNECTION', 'COLD'].includes(selectedStatus);
+  const isAutoDate = ['NO_RESPONSE', 'COLD'].includes(selectedStatus);
 
   const remarksActivities = activities.filter(a => a.remark && a.remark.trim());
 
@@ -204,38 +178,12 @@ const UpdateQualificationModal = ({ lead: initialLead, onClose, onSuccess }) => 
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const getQualifiedFlowMessage = () => {
-    if (visitDate) {
-      return { 
-        stage: 'Stage 3', 
-        text: `Lead will move to Site Visit Execution with visit scheduled on ${visitDate}`,
-        color: 'green',
-        icon: '📍'
-      };
-    }
-    if (followupDate) {
-      return { 
-        stage: 'Stage 2', 
-        text: `Lead will move to Site Visit Scheduling with followup on ${followupDate}`,
-        color: 'indigo',
-        icon: '📅'
-      };
-    }
-    return { 
-      stage: 'Stage 2', 
-      text: 'Lead will move to Site Visit Scheduling (backend will set followup date)',
-      color: 'blue',
-      icon: '⏱️'
-    };
-  };
-
   const validate = () => {
     const errs = {};
     if (!selectedStatus) errs.status = 'Please select a status';
     if (!remark.trim()) errs.remark = 'Remark is required';
-    if (isQualified) {
-      if (!projectId) errs.project = 'Project is required for qualified leads';
-      if (!purpose) errs.purpose = 'Purpose is required for qualified leads';
+    if (isVisitScheduled && !visitDate) {
+      errs.visitDate = 'Site visit date is required to schedule visit';
     }
     setErrors(errs);
     return Object.keys(errs).length === 0;
@@ -254,36 +202,32 @@ const UpdateQualificationModal = ({ lead: initialLead, onClose, onSuccess }) => 
         remark: remark.trim(),
       };
 
-      if (isQualified) {
-        payload.project_id = projectId;
-        payload.purpose = purpose;
-        if (importantNote) payload.important_note = importantNote;
-        if (interestedIn) payload.interested_in = interestedIn;
-        if (visitDate) payload.planned_site_visit_date = visitDate;
-        if (followupDate) payload.next_followup_date = followupDate;
+      if (isVisitScheduled) {
+        payload.planned_site_visit_date = visitDate;
       }
       
       if (isFollowupRequired && followupDate) {
         payload.next_followup_date = followupDate;
       }
-      
-      if (isNotQualified && notQualifiedReason) {
-        payload.not_qualified_reason = notQualifiedReason;
+
+      if (importantNote !== lead.important_note) {
+        payload.important_note = importantNote;
       }
 
-      const res = await qualificationApi.updateStatus(lead._id, payload);
+      console.log('📤 Submitting payload:', payload);
+      
+      const res = await siteVisitSchedulingApi.updateStatus(lead._id, payload);
       toast.success(res.data?.message || `Lead updated to ${selectedStatus.replace(/_/g, ' ')}`);
       onSuccess();
       onClose();
     } catch (error) {
+      console.error('❌ Update error:', error.response?.data);
       const msg = error.response?.data?.message || 'Failed to update lead';
       toast.error(msg);
     } finally {
       setIsSubmitting(false);
     }
   };
-
-  const qualifiedFlow = isQualified ? getQualifiedFlowMessage() : null;
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto">
@@ -292,14 +236,14 @@ const UpdateQualificationModal = ({ lead: initialLead, onClose, onSuccess }) => 
       <div className="flex min-h-full items-end justify-center p-4 sm:items-center sm:p-0">
         <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-3xl max-h-[90vh] overflow-y-auto">
           {/* Header */}
-          <div className="sticky top-0 bg-gradient-to-r from-purple-600 to-indigo-600 text-white px-6 py-4 rounded-t-2xl z-10">
+          <div className="sticky top-0 bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-6 py-4 rounded-t-2xl z-10">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 bg-white bg-opacity-20 rounded-lg flex items-center justify-center backdrop-blur-sm">
-                  <FileText size={20} className="text-white" />
+                  <Calendar size={20} className="text-white" />
                 </div>
                 <div>
-                  <h2 className="text-lg font-bold">Update Lead</h2>
+                  <h2 className="text-lg font-bold">Schedule Site Visit</h2>
                   <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                     <div className="flex items-center gap-1 text-xs bg-white bg-opacity-20 px-2 py-0.5 rounded-full">
                       <User size={11} />
@@ -332,7 +276,7 @@ const UpdateQualificationModal = ({ lead: initialLead, onClose, onSuccess }) => 
                 className="w-full flex items-center justify-between px-4 py-3 hover:bg-gray-100 transition-colors"
               >
                 <div className="flex items-center gap-2">
-                  <Info size={14} className="text-purple-600" />
+                  <Info size={14} className="text-indigo-600" />
                   <span className="text-sm font-semibold text-gray-800">Lead Details</span>
                   <StatusBadge status={lead.current_status} size="sm" />
                 </div>
@@ -341,7 +285,7 @@ const UpdateQualificationModal = ({ lead: initialLead, onClose, onSuccess }) => 
 
               <div className="px-4 pb-3 grid grid-cols-2 md:grid-cols-4 gap-3 border-t border-gray-100 pt-3">
                 <InfoRow icon={Phone} label="Contact" value={lead.customer_contact} />
-                <InfoRow icon={Mail} label="Email" value={lead.customer_email} />
+                <InfoRow icon={Building2} label="Project" value={lead.project?.name} />
                 <InfoRow icon={MapPin} label="Interested In" value={lead.interested_in} />
                 <InfoRow icon={Clock} label="Followup #" value={`#${lead.followup_count || 0}`} />
               </div>
@@ -349,12 +293,12 @@ const UpdateQualificationModal = ({ lead: initialLead, onClose, onSuccess }) => 
               {showAllDetails && (
                 <div className="px-4 pb-4 border-t border-gray-100 pt-3 space-y-3">
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                    <InfoRow icon={Mail} label="Email" value={lead.customer_email} />
+                    <InfoRow icon={Briefcase} label="Purpose" value={lead.purpose} />
                     <InfoRow icon={Star} label="Lead Source" value={lead.lead_source?.replace(/_/g, ' ')} />
                     <InfoRow icon={Info} label="Source Detail" value={lead.lead_source_detail} />
                     <InfoRow icon={Briefcase} label="Campaign" value={lead.campaign_name} />
                     <InfoRow icon={User} label="Lead Gen By" value={lead.lead_gen_name} />
-                    <InfoRow icon={Phone} label="Lead Gen Contact" value={lead.lead_gen_number} />
-                    <InfoRow icon={Building2} label="Project" value={lead.project?.name} />
                     <InfoRow icon={User} label="Current Owner" value={lead.current_owner?.name} color="text-purple-700" />
                     <InfoRow icon={Calendar} label="Created At" value={formatDate(lead.createdAt)} />
                     <InfoRow icon={Calendar} label="Last Action" value={timeAgo(lead.last_action_date)} />
@@ -378,89 +322,23 @@ const UpdateQualificationModal = ({ lead: initialLead, onClose, onSuccess }) => 
             {/* ═══ SECTION 2: UPDATE FORM ═══ */}
             <div className="border-t-2 border-gray-100 pt-4">
               <h3 className="text-sm font-bold text-gray-800 mb-3 flex items-center gap-2">
-                <History size={14} className="text-purple-600" />
-                Update Status & Add New Remark
+                <History size={14} className="text-indigo-600" />
+                Update Status & Schedule Visit
               </h3>
 
-              {/* Lead Fields */}
-              <div className="grid grid-cols-3 gap-3 mb-4">
-                <div>
-                  <label className="text-xs font-medium text-gray-600 block mb-1">
-                    Project {isQualified && <span className="text-red-500">*</span>}
-                  </label>
-                  <select
-                    value={projectId}
-                    onChange={(e) => {
-                      setProjectId(e.target.value);
-                      if (errors.project) setErrors({...errors, project: ''});
-                    }}
-                    className={`w-full text-sm border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500 ${
-                      errors.project ? 'border-red-300' : 'border-gray-200'
-                    }`}
-                  >
-                    <option value="">Select</option>
-                    {projects.map(p => (
-                      <option key={p._id} value={p._id}>{p.name}</option>
-                    ))}
-                  </select>
-                  {errors.project && (
-                    <p className="text-xs text-red-500 mt-1">{errors.project}</p>
-                  )}
-                </div>
-                
-                <div>
-                  <label className="text-xs font-medium text-gray-600 block mb-1">
-                    Purpose {isQualified && <span className="text-red-500">*</span>}
-                  </label>
-                  <select
-                    value={purpose}
-                    onChange={(e) => {
-                      setPurpose(e.target.value);
-                      if (errors.purpose) setErrors({...errors, purpose: ''});
-                    }}
-                    className={`w-full text-sm border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500 ${
-                      errors.purpose ? 'border-red-300' : 'border-gray-200'
-                    }`}
-                  >
-                    <option value="">Select</option>
-                    {PURPOSE_OPTIONS.map(p => (
-                      <option key={p.value} value={p.value}>{p.label}</option>
-                    ))}
-                  </select>
-                  {errors.purpose && (
-                    <p className="text-xs text-red-500 mt-1">{errors.purpose}</p>
-                  )}
-                </div>
-
-                <div>
-                  <label className="text-xs font-medium text-gray-600 block mb-1">Interested In</label>
-                  <select
-                    value={interestedIn}
-                    onChange={(e) => setInterestedIn(e.target.value)}
-                    className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500"
-                  >
-                    <option value="">Select</option>
-                    {INTERESTED_IN.map(i => (
-                      <option key={i.value} value={i.value}>{i.label}</option>
-                    ))}
-                  </select>
-                </div>
+              {/* Important Note */}
+              <div className="mb-4">
+                <label className="text-xs font-medium text-gray-600 block mb-1">
+                  Important Note (optional)
+                </label>
+                <input
+                  type="text"
+                  value={importantNote}
+                  onChange={(e) => setImportantNote(e.target.value)}
+                  placeholder="Any special notes about this lead..."
+                  className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
               </div>
-
-              {isQualified && (
-                <div className="mb-4">
-                  <label className="text-xs font-medium text-gray-600 block mb-1">
-                    Important Note (optional)
-                  </label>
-                  <input
-                    type="text"
-                    value={importantNote}
-                    onChange={(e) => setImportantNote(e.target.value)}
-                    placeholder="Any special notes about the customer..."
-                    className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500"
-                  />
-                </div>
-              )}
 
               {/* Status Selection Cards */}
               <div>
@@ -471,8 +349,8 @@ const UpdateQualificationModal = ({ lead: initialLead, onClose, onSuccess }) => 
                   <p className="text-xs text-red-500 mb-2">{errors.status}</p>
                 )}
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                  {QUALIFICATION_STATUSES.map((status) => {
-                    const Icon = STATUS_ICONS[status.value] || UserCheck;
+                  {SITE_VISIT_SCHEDULING_STATUSES.map((status) => {
+                    const Icon = STATUS_ICONS[status.value] || Calendar;
                     const color = STATUS_COLORS[status.value] || 'gray';
                     const isSelected = selectedStatus === status.value;
                     
@@ -522,72 +400,49 @@ const UpdateQualificationModal = ({ lead: initialLead, onClose, onSuccess }) => 
                 </div>
               </div>
 
-              {/* Date Fields for QUALIFIED */}
-              {isQualified && (
-                <div className="mt-4 space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="text-xs font-medium text-gray-700 block mb-1">
-                        <Calendar size={12} className="inline mr-1" />
-                        Site Visit Date <span className="text-gray-400">(optional)</span>
-                      </label>
-                      <input
-                        type="date"
-                        value={visitDate}
-                        onChange={(e) => setVisitDate(e.target.value)}
-                        min={getTodayString()}
-                        className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500"
-                      />
-                      <p className="text-xs text-green-600 mt-1">✅ Skips to Stage 3</p>
-                    </div>
-
-                    <div>
-                      <label className="text-xs font-medium text-gray-700 block mb-1">
-                        <Clock size={12} className="inline mr-1" />
-                        Next Followup Date <span className="text-gray-400">(optional)</span>
-                      </label>
-                      <input
-                        type="date"
-                        value={followupDate}
-                        onChange={(e) => setFollowupDate(e.target.value)}
-                        min={getTodayString()}
-                        className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500"
-                      />
-                      <p className="text-xs text-indigo-600 mt-1">📅 Moves to Stage 2</p>
+              {/* Site Visit Date — REQUIRED for VISIT_SCHEDULED */}
+              {isVisitScheduled && (
+                <div className="mt-4">
+                  <label className="text-xs font-medium text-gray-700 block mb-1">
+                    <Calendar size={12} className="inline mr-1" />
+                    Site Visit Date <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="date"
+                    value={visitDate}
+                    onChange={(e) => {
+                      setVisitDate(e.target.value);
+                      if (errors.visitDate) setErrors({...errors, visitDate: ''});
+                    }}
+                    min={getTodayString()}
+                    className={`w-full text-sm border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 ${
+                      errors.visitDate ? 'border-red-300' : 'border-gray-200'
+                    }`}
+                  />
+                  {errors.visitDate && (
+                    <p className="text-xs text-red-500 mt-1">{errors.visitDate}</p>
+                  )}
+                  
+                  {/* Flow Indicator */}
+                  <div className="mt-3 flex items-start gap-3 p-4 rounded-xl border-2 bg-green-50 border-green-200">
+                    <div className="text-2xl">📍</div>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-xs font-bold uppercase tracking-wide text-green-700">
+                          Next Step: Stage 3
+                        </span>
+                        <ArrowRight size={12} className="text-green-600" />
+                      </div>
+                      <p className="text-xs text-green-800">
+                        Lead will move to <strong>Field Visit Execution</strong> stage. 
+                        {visitDate && ` Visit scheduled for ${visitDate}.`}
+                      </p>
                     </div>
                   </div>
-
-                  {qualifiedFlow && (
-                    <div className={`flex items-start gap-3 p-4 rounded-xl border-2 ${
-                      qualifiedFlow.color === 'green' ? 'bg-green-50 border-green-200' :
-                      qualifiedFlow.color === 'indigo' ? 'bg-indigo-50 border-indigo-200' :
-                      'bg-blue-50 border-blue-200'
-                    }`}>
-                      <div className="text-2xl">{qualifiedFlow.icon}</div>
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className={`text-xs font-bold uppercase tracking-wide ${
-                            qualifiedFlow.color === 'green' ? 'text-green-700' :
-                            qualifiedFlow.color === 'indigo' ? 'text-indigo-700' :
-                            'text-blue-700'
-                          }`}>
-                            Next Step: {qualifiedFlow.stage}
-                          </span>
-                          <ArrowRight size={12} />
-                        </div>
-                        <p className={`text-xs ${
-                          qualifiedFlow.color === 'green' ? 'text-green-800' :
-                          qualifiedFlow.color === 'indigo' ? 'text-indigo-800' :
-                          'text-blue-800'
-                        }`}>
-                          {qualifiedFlow.text}
-                        </p>
-                      </div>
-                    </div>
-                  )}
                 </div>
               )}
 
+              {/* Followup Date for FOLLOWUP_REQUIRED */}
               {isFollowupRequired && (
                 <div className="mt-4">
                   <label className="text-xs font-medium text-gray-700 block mb-1">
@@ -599,7 +454,7 @@ const UpdateQualificationModal = ({ lead: initialLead, onClose, onSuccess }) => 
                     value={followupDate}
                     onChange={(e) => setFollowupDate(e.target.value)}
                     min={getTodayString()}
-                    className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   />
                   <p className="text-xs text-gray-500 mt-1">
                     {followupDate 
@@ -610,34 +465,20 @@ const UpdateQualificationModal = ({ lead: initialLead, onClose, onSuccess }) => 
                 </div>
               )}
 
-              {isNotQualified && (
-                <div className="mt-4">
-                  <label className="text-xs font-medium text-gray-700 block mb-1">
-                    Not Qualified Reason <span className="text-gray-400">(optional)</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={notQualifiedReason}
-                    onChange={(e) => setNotQualifiedReason(e.target.value)}
-                    placeholder="e.g., Budget too low, Wrong location..."
-                    className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500"
-                  />
-                </div>
-              )}
-
+              {/* Auto Date Info */}
               {isAutoDate && (
                 <div className="mt-4 flex items-start gap-2 p-3 bg-amber-50 border border-amber-100 rounded-xl">
                   <AlertCircle size={14} className="text-amber-500 flex-shrink-0 mt-0.5" />
                   <p className="text-xs text-amber-800">
                     {selectedStatus === 'COLD' 
                       ? <>❄️ Cold leads are auto-scheduled <strong>+15 working days</strong>. Date cannot be overridden.</>
-                      : <>⏱️ No Connection uses <strong>progressive gap</strong> (count × 2 days). Auto-calculated.</>
+                      : <>⏱️ No Response uses <strong>progressive gap</strong> (count × 2 days). Auto-calculated.</>
                     }
                   </p>
                 </div>
               )}
 
-              {/* ═══ PREVIOUS REMARKS — MOVED HERE (just before New Remark) ═══ */}
+              {/* ═══ PREVIOUS REMARKS ═══ */}
               <div className="mt-6 bg-gradient-to-br from-purple-50 to-indigo-50 border-2 border-purple-100 rounded-xl overflow-hidden">
                 <div className="px-4 py-3 flex items-center justify-between border-b border-purple-100 bg-white bg-opacity-50">
                   <button
@@ -661,23 +502,14 @@ const UpdateQualificationModal = ({ lead: initialLead, onClose, onSuccess }) => 
                       <button
                         onClick={handleCopyRemarks}
                         className="flex items-center gap-1 text-xs text-purple-700 hover:text-purple-900 bg-white px-2 py-1 rounded transition-colors border border-purple-200"
-                        title="Copy all remarks"
                       >
-                        {copied ? (
-                          <><Check size={11} /> Copied!</>
-                        ) : (
-                          <><Copy size={11} /> Copy All</>
-                        )}
+                        {copied ? (<><Check size={11} /> Copied!</>) : (<><Copy size={11} /> Copy All</>)}
                       </button>
                       <button
                         onClick={() => setRemarksExpanded(!remarksExpanded)}
                         className="p-1 hover:bg-white hover:bg-opacity-70 rounded transition-colors"
                       >
-                        {remarksExpanded ? (
-                          <ChevronUp size={16} className="text-purple-600" />
-                        ) : (
-                          <ChevronDown size={16} className="text-purple-600" />
-                        )}
+                        {remarksExpanded ? <ChevronUp size={16} className="text-purple-600" /> : <ChevronDown size={16} className="text-purple-600" />}
                       </button>
                     </div>
                   )}
@@ -694,7 +526,6 @@ const UpdateQualificationModal = ({ lead: initialLead, onClose, onSuccess }) => 
                       <div className="px-4 py-8 text-center">
                         <MessageSquare size={32} className="text-purple-300 mx-auto mb-2" />
                         <p className="text-sm text-purple-600 font-medium">No previous remarks yet</p>
-                        <p className="text-xs text-purple-500 mt-1">Your remarks will appear here after updates</p>
                       </div>
                     ) : (
                       <div className="max-h-64 overflow-y-auto scrollbar-thin bg-white">
@@ -730,19 +561,18 @@ const UpdateQualificationModal = ({ lead: initialLead, onClose, onSuccess }) => 
                     setRemark(e.target.value);
                     if (errors.remark) setErrors({...errors, remark: ''});
                   }}
-                  placeholder="Write about today's conversation with customer..."
+                  placeholder="Write about today's conversation..."
                   rows={4}
                   maxLength={500}
-                  className={`w-full text-sm border rounded-xl px-4 py-3 resize-none focus:outline-none focus:ring-2 focus:ring-purple-500 ${errors.remark ? 'border-red-300' : 'border-gray-200'}`}
+                  className={`w-full text-sm border rounded-xl px-4 py-3 resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500 ${errors.remark ? 'border-red-300' : 'border-gray-200'}`}
                 />
                 {errors.remark && (
                   <p className="text-xs text-red-500 mt-1">{errors.remark}</p>
                 )}
-                <p className="text-xs text-gray-400 mt-1">
-                  {remark.length}/500 characters
-                </p>
+                <p className="text-xs text-gray-400 mt-1">{remark.length}/500 characters</p>
               </div>
 
+              {/* Closing Warning */}
               {isClosingStatus && (
                 <div className="mt-4 flex items-start gap-2 p-3 bg-red-50 border border-red-100 rounded-xl">
                   <AlertCircle size={14} className="text-red-500 flex-shrink-0 mt-0.5" />
@@ -770,7 +600,7 @@ const UpdateQualificationModal = ({ lead: initialLead, onClose, onSuccess }) => 
                   ? 'bg-gray-300 cursor-not-allowed'
                   : isClosingStatus
                     ? 'bg-red-600 hover:bg-red-700'
-                    : 'bg-purple-600 hover:bg-purple-700'
+                    : 'bg-indigo-600 hover:bg-indigo-700'
               }`}
             >
               {isSubmitting ? (
@@ -789,4 +619,4 @@ const UpdateQualificationModal = ({ lead: initialLead, onClose, onSuccess }) => 
   );
 };
 
-export default UpdateQualificationModal;
+export default UpdateSiteVisitSchedulingModal;

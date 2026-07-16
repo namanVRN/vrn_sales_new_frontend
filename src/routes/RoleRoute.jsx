@@ -1,13 +1,24 @@
+// frontend/src/routes/RoleRoute.jsx
+import React from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import toast from 'react-hot-toast';
 
-const RoleRoute = ({ children, allowedRoles = [] }) => {
-  const { user } = useAuth();
+const RoleRoute = ({ children, roles }) => {
+  const { user, isAuthenticated } = useAuth();
 
-  if (!allowedRoles.includes(user?.role)) {
-    toast.error('You do not have access to this page');
-    return <Navigate to="/" replace />;
+  console.log('🎭 RoleRoute check:', { userRole: user?.role, allowed: roles });
+
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
+
+  if (!roles.includes(user?.role)) {
+    return (
+      <div style={{ padding: '40px', textAlign: 'center' }}>
+        <h1>Access Denied</h1>
+        <p>You don't have permission to view this page.</p>
+      </div>
+    );
   }
 
   return children;

@@ -1,12 +1,12 @@
+// frontend/src/api/authApi.js
 import api from './axios';
 
 export const authApi = {
-  login: (email, password) => api.post('/auth/login', { email, password }),
-  
+  login: (credentials) => {
+    console.log('📝 Login credentials being sent:', credentials);
+    return api.post('/auth/login', credentials);
+  },
   getMe: () => api.get('/auth/me'),
-  
   logout: () => api.post('/auth/logout'),
-  
-  changePassword: (currentPassword, newPassword) =>
-    api.post('/auth/change-password', { currentPassword, newPassword }),
+  changePassword: (data) => api.post('/auth/change-password', data),
 };

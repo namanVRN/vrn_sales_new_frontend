@@ -1,54 +1,69 @@
+// frontend/src/api/axios.js
 import axios from 'axios';
 import toast from 'react-hot-toast';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+
+console.log('🌐 API_URL configured:', API_URL);
 
 const api = axios.create({
   baseURL: API_URL,
   headers: {
     'Content-Type': 'application/json',
   },
+  timeout: 15000,
 });
 
-// ═══════════════════════════════════════════
-// REQUEST INTERCEPTOR — Attach JWT token
-// ═══════════════════════════════════════════
+// Request interceptor
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('vrn_token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+    
+    console.log('🚀 REQUEST:', {
+      method: config.method?.toUpperCase(),
+      url: config.baseURL + config.url,
+      data: config.data,
+      headers: config.headers,
+    });
+    
     return config;
   },
-  (error) => Promise.reject(error)
+  (error) => {
+    console.error('❌ REQUEST ERROR:', error);
+    return Promise.reject(error);
+  }
 );
 
-// ═══════════════════════════════════════════
-// RESPONSE INTERCEPTOR — Handle errors globally
-// ═══════════════════════════════════════════
+// Response interceptor
 api.interceptors.response.use(
-  (response) => response.data,
+  (response) => {
+    console.log('✅ RESPONSE:', {
+      status: response.status,
+      url: response.config.url,
+      data: response.data,
+    });
+    return response;
+  },
   (error) => {
-    const message = error.response?.data?.message || 'Something went wrong';
-    const status = error.response?.status;
+    console.error('❌ RESPONSE ERROR:', {
+      url: error.config?.url,
+      status: error.response?.status,
+      data: error.response?.data,
+      message: error.message,
+    });
 
-    // Token expired or invalid — logout
-    if (status === 401) {
+    if (error.response?.status === 401) {
       localStorage.removeItem('vrn_token');
-      localStorage.removeItem('vrn_user');
-      
       if (window.location.pathname !== '/login') {
         toast.error('Session expired. Please login again.');
         window.location.href = '/login';
       }
-    } else if (status === 403) {
-      toast.error(message || 'Access denied');
-    } else if (status >= 500) {
-      toast.error('Server error. Please try again.');
     }
 
-    return Promise.reject(error.response?.data || { message });
+    return Promise.reject(error);
   }
 );
 
