@@ -21,14 +21,20 @@ api.interceptors.request.use(
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
-    
+
+    // ✅ Prevent browser/proxy cache issues on GET requests
+    if (config.method?.toLowerCase() === 'get') {
+      config.params = { ...(config.params || {}), _ts: Date.now() };
+    }
+
     console.log('🚀 REQUEST:', {
       method: config.method?.toUpperCase(),
       url: config.baseURL + config.url,
       data: config.data,
       headers: config.headers,
+      params: config.params,
     });
-    
+
     return config;
   },
   (error) => {

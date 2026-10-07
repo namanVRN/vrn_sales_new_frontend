@@ -1,24 +1,21 @@
-// frontend/src/api/projectApi.js
 import api from './axios';
 
-// ═══════════════════════════════════════════
-// PROJECT API — Object-style methods (existing)
-// ═══════════════════════════════════════════
+// Project API (Admin write, all auth read)
 export const projectApi = {
   getAll: (params = {}) => api.get('/projects', { params }),
-  getActive: () => api.get('/projects/active'),
+  getActive: (params = {}) => api.get('/projects/active', { params }),
   getById: (id) => api.get(`/projects/${id}`),
+
+  // Admin only
   create: (data) => api.post('/projects', data),
   update: (id, data) => api.patch(`/projects/${id}`, data),
   toggle: (id) => api.patch(`/projects/${id}/toggle`),
   delete: (id) => api.delete(`/projects/${id}`),
 };
 
-// ═══════════════════════════════════════════
-// Named exports for direct use in components
-// ═══════════════════════════════════════════
-export const getAllProjects = (params = {}) => api.get('/projects', { params });
-export const getActiveProjects = () => api.get('/projects/active');
+// Optional named exports (if you use them elsewhere)
+export const getProjects = (params = {}) => api.get('/projects', { params });
+export const getActiveProjects = (params = {}) => api.get('/projects/active', { params });
 export const getProjectById = (id) => api.get(`/projects/${id}`);
 export const createProject = (data) => api.post('/projects', data);
 export const updateProject = (id, data) => api.patch(`/projects/${id}`, data);

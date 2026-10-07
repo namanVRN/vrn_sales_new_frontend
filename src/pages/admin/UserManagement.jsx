@@ -1,9 +1,9 @@
-// frontend/src/pages/admin/UserManagement.jsx
+// PAGE: UserManagement
 import { useState, useEffect, useCallback } from 'react';
 import {
   Users, Plus, Search, Edit3, Key, Power, Trash2,
-  RefreshCw, Shield, User as UserIcon, Phone, Mail,
-  CheckCircle, XCircle, Filter
+  RefreshCw, Shield, Phone, Mail,
+  CheckCircle, XCircle,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { userApi } from '../../api/userApi.js';
@@ -41,7 +41,11 @@ const UserManagement = () => {
       if (statusFilter) params.is_active = statusFilter;
 
       const res = await userApi.getAll(params);
-      const list = res?.data?.data?.users || res?.data?.users || [];
+
+      // don't wipe list if payload missing
+      const list = res?.data?.data?.users ?? res?.data?.users ?? null;
+      if (list === null) return;
+
       setUsers(Array.isArray(list) ? list : []);
     } catch (err) {
       console.error('Fetch users error:', err);
@@ -125,8 +129,10 @@ const UserManagement = () => {
     fetchUsers();
   };
 
+  // refresh list after password reset
   const handlePasswordSuccess = () => {
     setPasswordModal({ open: false, user: null });
+    fetchUsers();
   };
 
   // ── Stats ──────────────────────────
@@ -142,8 +148,7 @@ const UserManagement = () => {
 
   return (
     <div className="flex flex-col gap-5">
-
-      {/* ── Header ── */}
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-3">
@@ -176,7 +181,7 @@ const UserManagement = () => {
         </div>
       </div>
 
-      {/* ── Stats Cards ── */}
+      {/* Stats Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm">
           <div className="flex items-center justify-between mb-2">
@@ -225,14 +230,18 @@ const UserManagement = () => {
         </div>
       </div>
 
-      {/* ── Filters ── */}
+      {/* Filters */}
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
         <div className="flex flex-col md:flex-row gap-3">
-          {/* Search */}
           <div className="flex-1 relative">
             <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
             <input
-              type="text"
+              type="search"
+              name="users_search"
+              autoComplete="off"
+              autoCorrect="off"
+              autoCapitalize="off"
+              spellCheck={false}
               value={searchInput}
               onChange={e => setSearchInput(e.target.value)}
               placeholder="Search by name, email, or display code..."
@@ -240,7 +249,6 @@ const UserManagement = () => {
             />
           </div>
 
-          {/* Role filter */}
           <select
             value={roleFilter}
             onChange={e => setRoleFilter(e.target.value)}
@@ -252,7 +260,6 @@ const UserManagement = () => {
             ))}
           </select>
 
-          {/* Status filter */}
           <select
             value={statusFilter}
             onChange={e => setStatusFilter(e.target.value)}
@@ -265,7 +272,7 @@ const UserManagement = () => {
         </div>
       </div>
 
-      {/* ── Users Table ── */}
+      {/* Users Table */}
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
           <div className="flex items-center gap-2">
@@ -300,11 +307,10 @@ const UserManagement = () => {
                   <th className="text-center py-4 px-5 text-xs font-bold text-gray-500 uppercase tracking-wider">Actions</th>
                 </tr>
               </thead>
+
               <tbody className="divide-y divide-gray-50">
                 {users.map(user => (
                   <tr key={user._id} className={`hover:bg-gray-50 transition-colors ${!user.is_active ? 'opacity-60' : ''}`}>
-
-                    {/* User */}
                     <td className="py-4 px-5">
                       <div className="flex items-center gap-3">
                         <div className="w-11 h-11 rounded-full bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center shadow-sm">
@@ -319,7 +325,6 @@ const UserManagement = () => {
                       </div>
                     </td>
 
-                    {/* Contact */}
                     <td className="py-4 px-5">
                       <div className="space-y-1">
                         <div className="flex items-center gap-1.5 text-sm text-gray-700">
@@ -335,7 +340,6 @@ const UserManagement = () => {
                       </div>
                     </td>
 
-                    {/* Role */}
                     <td className="py-4 px-5">
                       <span className={`inline-flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-full border ${ROLE_COLORS[user.role] || 'bg-gray-100 text-gray-700'}`}>
                         <Shield size={11} />
@@ -343,7 +347,6 @@ const UserManagement = () => {
                       </span>
                     </td>
 
-                    {/* Assignment % (BDM only) */}
                     <td className="py-4 px-5">
                       {user.role === 'BDM' ? (
                         <div className="flex items-center gap-2">
@@ -362,7 +365,6 @@ const UserManagement = () => {
                       )}
                     </td>
 
-                    {/* Status */}
                     <td className="py-4 px-5">
                       {user.is_active ? (
                         <span className="inline-flex items-center gap-1 text-xs font-semibold text-green-700 bg-green-100 px-3 py-1 rounded-full">
@@ -377,7 +379,6 @@ const UserManagement = () => {
                       )}
                     </td>
 
-                    {/* Last Login */}
                     <td className="py-4 px-5">
                       <span className="text-sm text-gray-600">
                         {user.last_login
@@ -389,7 +390,6 @@ const UserManagement = () => {
                       </span>
                     </td>
 
-                    {/* Actions */}
                     <td className="py-4 px-5">
                       <div className="flex items-center gap-1 justify-center">
                         <button
@@ -429,12 +429,13 @@ const UserManagement = () => {
                   </tr>
                 ))}
               </tbody>
+
             </table>
           </div>
         )}
       </div>
 
-      {/* ── Modals ── */}
+      {/* Modals */}
       {formModal.open && (
         <UserFormModal
           user={formModal.user}
